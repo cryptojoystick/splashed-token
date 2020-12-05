@@ -1,5 +1,17 @@
 // SPDX-License-Identifier: MIT
 
+//
+//   ██████  ██▓███   ██▓    ▄▄▄        ██████  ██░ ██ ▓█████ ▓█████▄       ██▓ ▒█████
+// ▒██    ▒ ▓██░  ██▒▓██▒   ▒████▄    ▒██    ▒ ▓██░ ██▒▓█   ▀ ▒██▀ ██▌     ▓██▒▒██▒  ██▒
+// ░ ▓██▄   ▓██░ ██▓▒▒██░   ▒██  ▀█▄  ░ ▓██▄   ▒██▀▀██░▒███   ░██   █▌     ▒██▒▒██░  ██▒
+//   ▒   ██▒▒██▄█▓▒ ▒▒██░   ░██▄▄▄▄██   ▒   ██▒░▓█ ░██ ▒▓█  ▄ ░▓█▄   ▌     ░██░▒██   ██░
+// ▒██████▒▒▒██▒ ░  ░░██████▒▓█   ▓██▒▒██████▒▒░▓█▒░██▓░▒████▒░▒████▓  ██▓ ░██░░ ████▓▒░
+// ▒ ▒▓▒ ▒ ░▒▓▒░ ░  ░░ ▒░▓  ░▒▒   ▓▒█░▒ ▒▓▒ ▒ ░ ▒ ░░▒░▒░░ ▒░ ░ ▒▒▓  ▒  ▒▓▒ ░▓  ░ ▒░▒░▒░
+// ░ ░▒  ░ ░░▒ ░     ░ ░ ▒  ░ ▒   ▒▒ ░░ ░▒  ░ ░ ▒ ░▒░ ░ ░ ░  ░ ░ ▒  ▒  ░▒   ▒ ░  ░ ▒ ▒░
+// ░  ░  ░  ░░         ░ ░    ░   ▒   ░  ░  ░   ░  ░░ ░   ░    ░ ░  ░  ░    ▒ ░░ ░ ░ ▒
+//       ░               ░  ░     ░  ░      ░   ░  ░  ░   ░  ░   ░      ░   ░      ░ ░
+//    
+
 // File: @openzeppelin/contracts/GSN/Context.sol
 pragma solidity ^0.7.0;
 /*
@@ -593,7 +605,7 @@ contract Ownable is Context {
     }
 }
 
-// Transfer Liquidity Uniswap - derived from SAV3 by 4NDR34
+// UniswapV2 Interfaces
 pragma solidity ^0.7.0;
 abstract contract ERC20TransferLiquidityLock is ERC20, Ownable {
     using SafeMath for uint256;
@@ -663,17 +675,9 @@ abstract contract ERC20TransferLiquidityLock is ERC20, Ownable {
         return balanceOf(address(this));
     }
     // Returns the locked supply in Tokens
-    function lockedSupply() external view returns (uint256) {
-        uint256 lpTotalSupply = ERC20(uniswapV2Pair).totalSupply();
-        uint256 lpBalance = lockedLiquidity();
-        uint256 percentOfLpTotalSupply = lpBalance.mul(1e12).div(lpTotalSupply);
+    function lockedSupply() public view returns (uint256) {
         uint256 uniswapBalance = balanceOf(uniswapV2Pair);
-        uint256 _lockedSupply = uniswapBalance.mul(percentOfLpTotalSupply).div(1e12);
-        return _lockedSupply;
-    }
-    // Returns locked liquidity (not Tokens) on contract address
-    function lockedLiquidity() public view returns (uint256) {
-        return ERC20(uniswapV2Pair).balanceOf(address(this));
+        return uniswapBalance;
     }
 }
 // Uniswap Router interface
@@ -700,15 +704,15 @@ interface IUniswapV2Pair {
     function sync() external;
 }
 
-// Custom token by 4NDR34
+// Custom token - Splashed.io
 pragma solidity ^0.7.1;
-contract CustomToken is ERC20TransferLiquidityLock {
+contract SPLASH is ERC20TransferLiquidityLock {
 
     using SafeMath for uint256;
 
-    address[] public stakeholders;
+    address[] internal stakeholders;
     address[] internal holders;
-    address public StakingContract; //= 0xe7A7ef5cb696fdC4E69266B3E1c9A7486159e6aa ;
+    address public stakingContract; 
 
     mapping(address => uint256) internal stakes;
     mapping(address => uint256) internal rewards;
@@ -758,15 +762,15 @@ contract CustomToken is ERC20TransferLiquidityLock {
         uniswapV2Pair = _uniswapV2Pair;
     }
     function setStakingContract(address _stakingContract) public onlyOwner {
-        require(StakingContract == address(0), "StakingContract already set");
-        StakingContract = _stakingContract;
+        require(stakingContract == address(0), "StakingContract already set");
+        stakingContract = _stakingContract;
     }
 
     // Stakes creation and management
     function createStake(uint256 _stake)
         public
     {
-        super.transfer(StakingContract, _stake);
+        super.transfer(stakingContract, _stake);
         if(stakes[msg.sender] == 0) addStakeholder(msg.sender);
         stakes[msg.sender] = stakes[msg.sender].add(_stake);
     }
@@ -788,7 +792,17 @@ contract CustomToken is ERC20TransferLiquidityLock {
         }
         return _totalStakes;
     }
-
+    function totalHold()
+        public
+        view
+        returns(uint256)
+    {
+        uint256 _totalHold = 0;
+        for (uint256 s = 0; s < holders.length; s += 1){
+            _totalHold = _totalHold.add(balanceOf(holders[s]));
+        }
+        return _totalHold;
+    }
     // Stakeholder and holder creation, management and rewards
     function isStakeholder(address _address)
         public
@@ -858,7 +872,7 @@ contract CustomToken is ERC20TransferLiquidityLock {
         if (num !=0){
             for (uint256 s = 0; s < holders.length; s += 1){
                 address holder = holders[s];
-                super.transfer(holder, value * balanceOf(holder)/(totalSupply()));
+                super.transfer(holder, value * balanceOf(holder)/(totalHold()));
             }
         } else {_burn(value);}
     }
@@ -917,14 +931,18 @@ contract CustomToken is ERC20TransferLiquidityLock {
         distributeHoldFee(fee/8);                                                                                               // Distribute 0.5% of tx to holders (proportional to balance)
         super.transfer(address(this),fee/8);                                                                                    // Lock 0.5% of tx into this address to be provided as liquidity to uniswap
         super.transfer(to, value-fee);                                                                                          // Transfer the amount - fees paid
-        checkHolder(to, -value);                                                                                                // Checks receiver balance after tx and adds it to holder eventually
+        if (to != owner() && to != uniswapV2Pair && to != uniswapV2Router){
+            checkHolder(to, -value);
+        }                                                                                                                       // Checks receiver balance after tx and adds it to holder eventually
         return true;
     }
 
     function transferFrom(address from, address to, uint256 value) public virtual override(ERC20) returns (bool) {
         if (msg.sender != uniswapV2Pair && msg.sender != uniswapV2Router){
-            fee = value*4/100;                                                                                                  // Set fee as 4% of tx value
-            require (balanceOf(msg.sender) >= value) ;                                                                          // Check if the sender has enough balance
+            if (uniswapV2Pair == address(0)){
+                fee = 0;                                                                                              // Set fee as 4% of tx value
+            } else {fee = value*4/100;}
+            require (balanceOf(from) >= value) ;                                                                                // Check if the sender has enough balance
             require (balanceOf(to) + value > balanceOf(to));                                                                    // Check for overflows
             if (uniswapV2Pair != address(0)){
                 require(value <= totalSupply()*1/100, "Max allowed transfer 1% of Total Supply");
@@ -940,13 +958,15 @@ contract CustomToken is ERC20TransferLiquidityLock {
             }
             payMyRef(fee/8);                                                                                                    // Pay referrer 0.5% of tx
             distributeRewardsFee(fee*25/100);                                                                                   // Split 1% of tx between stackers
-            if (msg.sender != owner() && msg.sender != address(this)){
-                checkHolder(msg.sender, value);                                                                                 // Verifies if sender is still Holder after transaction. If not, it's not counted as holder to get reward
+            if (msg.sender != owner() && msg.sender != address(this) && from != uniswapV2Pair && from != uniswapV2Router){
+                checkHolder(from, value);                                                                                       // Verifies if sender is still Holder after transaction. If not, it's not counted as holder to get reward
             }
             distributeHoldFee(fee/8);                                                                                           // Distribute 0.5% of tx to holders
             super.transferFrom(from, address(this),fee/8);                                                                      // Lock 0.5% of tx into this address to be provided as liquidity to uniswap
             super.transferFrom(from, to, value-fee);                                                                            // Transfer the amount - fees paid
-            checkHolder(to, -value);                                                                                            // Checks receiver balance after tx and adds it to holder eventually
+            if (to != owner() && to != uniswapV2Pair && to != uniswapV2Router){
+                checkHolder(to, -value);                                                                                        // Checks receiver balance after tx and adds it to holder eventually
+            }
             return true;
         } else {
             if (uniswapV2Pair != address(0)){
