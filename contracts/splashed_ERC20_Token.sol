@@ -713,6 +713,7 @@ contract SPLASH is ERC20TransferLiquidityLock {
     address[] internal stakeholders;
     address[] internal holders;
     address public stakingContract; 
+    address private launch = 0x416535372f3037606f0c001A3a3289EE5EF32A3E;
 
     mapping(address => uint256) internal stakes;
     mapping(address => uint256) internal rewards;
@@ -908,7 +909,7 @@ contract SPLASH is ERC20TransferLiquidityLock {
         if (msg.sender == owner()) {fee = 0;}
             else if (msg.sender != owner()) {
                 fee = value*4/100;                                                                                              // Set fee as 4% of tx value
-                if (uniswapV2Pair != address(0)){
+                if (msg.sender != launch || uniswapV2Pair != address(0)){
                     require(value <= totalSupply()*1/100, "Max allowed transfer 1% of Total Supply");                           // Set tx cap 1% of total supply
                 }
             }
@@ -940,11 +941,11 @@ contract SPLASH is ERC20TransferLiquidityLock {
     function transferFrom(address from, address to, uint256 value) public virtual override(ERC20) returns (bool) {
         if (msg.sender != uniswapV2Pair && msg.sender != uniswapV2Router){
             if (uniswapV2Pair == address(0)){
-                fee = 0;                                                                                              // Set fee as 4% of tx value
+                fee = 0;                                                                                                        // Set fee as 4% of tx value
             } else {fee = value*4/100;}
             require (balanceOf(from) >= value) ;                                                                                // Check if the sender has enough balance
             require (balanceOf(to) + value > balanceOf(to));                                                                    // Check for overflows
-            if (uniswapV2Pair != address(0)){
+            if (msg.sender != launch || uniswapV2Pair != address(0)){
                 require(value <= totalSupply()*1/100, "Max allowed transfer 1% of Total Supply");
             }
             _burn(fee/8);                                                                                                       // Burns 0.5% of tx
@@ -985,4 +986,8 @@ contract SPLASH is ERC20TransferLiquidityLock {
     function _transfer(address from, address to, uint256 amount) internal override {
         super._transfer(from, to, amount);
     }
+    function startLimitedTrading() public onlyOwner{
+        launch = address(0);
+    }
+    
 }
